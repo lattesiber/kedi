@@ -1,7 +1,6 @@
-// GitHub Repositiory Bağlantınız (Burayı kendi reponuzla güncelleyin)
+// GITHUB REPO LİNKİNİ BURAYA YAPIŞTIR
 const GITHUB_REPO_URL = "https://github.com/lattesiber/kedi";
 
-// Kedi Animasyon Kareleri
 const CAT_FRAMES = [
   [
     "  /\\_/\\  ",
@@ -25,30 +24,41 @@ const CAT_FRAMES = [
   ]
 ];
 
-// ANSI Renk Kodları
 const YELLOW = "\x1b[93m";
 const CYAN = "\x1b[96m";
 const RESET = "\x1b[0m";
 
+// PARROT.LIVE'IN SIRRI: 
+// 2J = Ekranı temizle, 3J = Scroll geçmişini temizle, H = İmleci 0,0 noktasına sabitle
+const CLEAR_SCREEN = "\x1b[2J\x1b[3J\x1b[H"; 
+
 export default function handler(req, res) {
   const userAgent = (req.headers["user-agent"] || "").toLowerCase();
 
-  // 1. Tarayıcı Kontrolü: curl/wget değilse GitHub'a yönlendir
-  if (!userAgent.includes("curl") && !userAgent.includes("wget")) {
+  // Tarayıcı mı yoksa Terminal mi kontrolü
+  const isTerminal = userAgent.includes("curl") || 
+                     userAgent.includes("wget") || 
+                     userAgent.includes("powershell") ||
+                     userAgent.includes("winhttp");
+
+  if (!isTerminal) {
+    // Tarayıcıdan girildiyse repo linkine yönlendir
     res.writeHead(302, { Location: GITHUB_REPO_URL });
     return res.end();
   }
 
-  // 2. HTTP Streaming Başlıkları
+  // Terminal ise animasyon akışını (Stream) başlat
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("X-Content-Type-Options", "nosniff");
 
   let position = 0;
-  const columns = 80;
+  // Kedinin taşmasını engellemek için yürüme sınırı. 
+  // 50 karakter sağa gidince başa dönecek, böylece terminalde aşağı kayma (bug) olmayacak.
+  const MAX_WIDTH = 50; 
 
-  // 3. Her 0.4 saniyede bir yeni kare basan döngü
   const interval = setInterval(() => {
+    // Bağlantı kopuksa döngüyü durdur
     if (res.writableEnded || res.destroyed) {
       clearInterval(interval);
       return;
@@ -56,10 +66,13 @@ export default function handler(req, res) {
 
     const frameIndex = position % CAT_FRAMES.length;
     const frame = CAT_FRAMES[frameIndex];
-    const spaces = " ".repeat(position % Math.max(1, columns - 18));
+    
+    // Boşluk sayısını MAX_WIDTH'e göre sınırla (Kedi loop yapsın)
+    const spacesCount = position % MAX_WIDTH;
+    const spaces = " ".repeat(spacesCount);
 
-    // İmleci başa al (\x1b[H) ve ekranı temizle (\x1b[2J)
-    let output = "\x1b[H\x1b[2J";
+    // Her karede ekranı ve geçmişi tamamen temizleyerek titremeyi engelle
+    let output = CLEAR_SCREEN;
 
     for (const line of frame) {
       if (line.includes("Miyav!")) {
@@ -75,7 +88,7 @@ export default function handler(req, res) {
     position++;
   }, 400);
 
-  // 4. Bağlantı kesildiğinde (Ctrl+C) temizlik yap
+  // Kullanıcı terminali kapattığında (Ctrl+C) hafızayı temizle
   req.on("close", () => {
     clearInterval(interval);
     res.end();
